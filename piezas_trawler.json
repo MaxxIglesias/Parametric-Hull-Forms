@@ -1,0 +1,36 @@
+{
+  "_comentario": "Roles y nombres de las caras de Trawler_hull_maxsurf_model.3dm (id = objeto.cara). Las no listadas son CASCO; los espejos (planos x = cte a popa) se detectan solos.",
+  "roles": {
+    "1.0": "SKEG",
+    "1.1": "SKEG",
+    "3.0": "SKEG",
+    "3.1": "SKEG"
+  },
+  "nombres": {
+    "1.0": "SKEG_CARA_POPA_CENTRO",
+    "1.1": "SKEG_CARA_POPA",
+    "3.0": "SKEG_FONDO",
+    "3.1": "SKEG_COSTADO",
+    "4.1": "HULL_POPA_COSTADO",
+    "4.2": "HULL_POPA_FONDO_SOBRE_SKEG",
+    "5.0": "HULL_BOVEDILLA_CENTRO",
+    "6.0": "HULL_BOVEDILLA",
+    "8.0": "QUILLA_PROA",
+    "9.0": "QUILLA_CENTRO",
+    "13.0": "HULL",
+    "47.0": "HULL_PROA",
+    "44.0": "CUBIERTA",
+    "12.0": "AMURADA_POPA",
+    "14.0": "AMURADA_CENTRO",
+    "18.0": "ESPEJO_1",
+    "20.0": "ESPEJO_CRUJIA_1",
+    "20.1": "ESPEJO_CRUJIA_2",
+    "21.0": "ESPEJO",
+    "23.0": "ESPEJO_3",
+    "28.0": "ESPEJO_4",
+    "33.0": "ESPEJO_5",
+    "41.0": "ESPEJO_6",
+    "45.0": "ESPEJO_7",
+    "49.0": "ESPEJO_8"
+  }
+}

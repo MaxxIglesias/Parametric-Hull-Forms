@@ -1,0 +1,16 @@
+# Cachés (se regeneran solas; la del casco leído es un pickle local)
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Rhino
+*.3dmbak
+*.rhl
+
+# Sistema / editores
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
