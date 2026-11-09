@@ -19,19 +19,21 @@ and applies it directly to the Rhino `.3dm` file, without Rhino or MAXSURF runni
 
 ## Quick start
 
+The parent hull is included in `data/` (see [data/README.md](data/README.md) for its source).
+
 ```
 pip install -r requirements.txt
 
 # Hydrostatics of the parent hull and convergence check
-python main.py <hull.3dm> --dwl 2.36 --solo-hidrostaticas --convergencia
+python main.py data/Trawler_hull_maxsurf_model.3dm --dwl 2.36 --solo-hidrostaticas --convergencia
 
 # Transform the parent to the design hull
-python main.py <hull.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545
+python main.py data/Trawler_hull_maxsurf_model.3dm --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545
 
 # 75-variant matrix at constant displacement (C_B ±5 %, LCB ±2 % Lwl, L/B ±3 %)
-python main.py <hull.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545 --matriz
+python main.py data/Trawler_hull_maxsurf_model.3dm --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545 --matriz
 
-# Tests (path to the parent hull through the CASCO_3DM environment variable)
+# Tests (about 90 s)
 python -m pytest tests -q
 ```
 
@@ -121,6 +123,12 @@ reproduces a worked spreadsheet cell by cell.
 skeg), and C_B, C_M and B/T use this draught. The forward draught T_F, which only enters the
 bulb and correlation terms of Holtrop, is obtained by extending the keel line to the forward
 perpendicular.
+
+## Licence
+
+The code and the generated results are released under the MIT licence (see [LICENSE](LICENSE)).
+The parent hull model in `data/` belongs to its original author (I. Khlutchin, GrabCAD) and is
+not covered by this licence; it is included only for academic use.
 
 ## References
 

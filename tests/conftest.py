@@ -1,7 +1,7 @@
 """Datos compartidos por los tests (se calculan una vez por sesión).
 
-El casco se toma de la variable de entorno CASCO_3DM o, si no existe, de la ruta del
-proyecto del curso.
+El casco se toma de la variable de entorno CASCO_3DM o, si no existe, del casco padre
+incluido en el repositorio (data/Trawler_hull_maxsurf_model.3dm).
 """
 
 import os
@@ -17,9 +17,7 @@ from transfparam import hidrostatica as hidro  # noqa: E402
 from transfparam.modelo import cargar_casco  # noqa: E402
 from transfparam.transformacion import refinar_para_lackenby, transformar  # noqa: E402
 
-RUTA_DEFECTO = (Path.home() / "OneDrive" / "Escritorio" / "Master" / "q3"
-                / "Ampliació de projectes del vaixell" / "coursework" / "block_2" / "own_series"
-                / "rhino" / "Trawler_hull_maxsurf_model.3dm")
+RUTA_DEFECTO = RAIZ / "data" / "Trawler_hull_maxsurf_model.3dm"
 DWL = 2.36
 DISENO = dict(L=20.45, B=6.16, T=2.36, cb=0.545)
 
