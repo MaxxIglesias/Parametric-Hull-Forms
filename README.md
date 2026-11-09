@@ -1,110 +1,137 @@
-# Transformación paramétrica de cascos (Lackenby, 1950) en Python
+# Parametric hull transformation (Lackenby) for a 24 m bottom trawler
 
-Reproduce la *Parametric Transformation* de Maxsurf directamente sobre el archivo de
-Rhino, sin abrir Rhino ni Maxsurf (solo `rhino3dm`, `numpy`, `scipy`, `matplotlib`).
+Coursework for *280812 – Advanced Ship Design* (Master in Naval and Oceanic Engineering, UPC-FNB).
+
+MAXSURF Modeler's Parametric Transformation distorted the parent hull, a render-type model made of
+many trimmed and overlapping NURBS patches. This repository reimplements the same method in Python
+and applies it directly to the Rhino `.3dm` file, without Rhino or MAXSURF running. It only uses
+`rhino3dm`, `numpy`, `scipy` and `matplotlib`.
+
+- **Hydrostatics** from 200 transverse sections (outer contour only), converged to < 0.1 %.
+- **Affine scaling** to the design L, B and T, plus a **Lackenby section shift** (Lackenby, 1950)
+  to reach the target C_B and LCB within 1e-4.
+- **Resistance** with Holtrop-Mennen (1982/1984) and van Oortmerssen (1971), with validity-range warnings.
+- **Variant matrix** at constant displacement (C_B, LCB, L/B), with maps and R_T–V curves.
+- **pytest** verification: scaling, zero shift, targets, patch joints < 5 mm, no section crossing,
+  and resistance checked against worked examples.
+
+> Code comments, command-line options and output labels are in Spanish.
+
+## Quick start
 
 ```
-python main.py <casco.3dm> --dwl 2.36 --solo-hidrostaticas --convergencia
-python main.py <casco.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545
-python main.py <casco.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545 --matriz
+pip install -r requirements.txt
+
+# Hydrostatics of the parent hull and convergence check
+python main.py <hull.3dm> --dwl 2.36 --solo-hidrostaticas --convergencia
+
+# Transform the parent to the design hull
+python main.py <hull.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545
+
+# 75-variant matrix at constant displacement (C_B ±5 %, LCB ±2 % Lwl, L/B ±3 %)
+python main.py <hull.3dm> --dwl 2.36 --L 20.45 --B 6.16 --T 2.36 --cb 0.545 --matriz
+
+# Tests (path to the parent hull through the CASCO_3DM environment variable)
 python -m pytest tests -q
 ```
 
-`python main.py -h` lista todas las opciones (Δ fijo con `--delta` y `--libre`, flag
-`--sin-skeg`, rangos de la matriz, velocidades, versión de Holtrop, resolución...).
+`python main.py -h` lists every option. These include a fixed displacement with one free
+dimension (`--delta`, `--libre`), excluding the skeg (`--sin-skeg`), the matrix ranges, the speed
+range, the Holtrop version (`--holtrop 1982|1984`) and the numerical resolution.
 
-## Archivos
+## Results
 
-| Archivo | Contenido |
+The results shown in the report are already in `resultados/`:
+
+| Folder | Content |
 |---|---|
-| `main.py` | Programa principal (argparse) |
-| `piezas_trawler.json` | Roles (SKEG) y nombres de las caras del `.3dm` de partida |
-| `transfparam/nurbs.py` | B-splines con numpy: Cox-de Boor, inversión de puntos, inserción de nudos |
-| `transfparam/modelo.py` | Lectura del `.3dm`, recortes, teselado, juntas y escritura |
-| `transfparam/hidrostatica.py` | Hidrostáticas por secciones, SAC, superficie mojada, convergencia |
-| `transfparam/transformacion.py` | Escalado afín + Lackenby (primer orden y ajuste exacto) |
-| `transfparam/resistencia.py` | Holtrop-Mennen 1982/1984 y van Oortmerssen 1971, rangos de validez |
-| `transfparam/serie.py` | Matriz de variantes a desplazamiento constante |
-| `transfparam/graficas.py` | SAC, caja de cuadernas, mapas de RT, curvas RT-V |
-| `tests/` | Verificación (pytest) |
+| `resultados/diseno/` | Design hull: transformed `.3dm`, hydrostatics (parent / scaled / final), convergence, resistance curves, SAC, body plan and R_T–V figures |
+| `resultados/matriz/` | Variant study: summary table (`matriz_resumen.csv/.xlsx`), resistance curves of all variants, R_T maps vs C_B and LCB, base vs best comparison |
+| `resultados/matriz/variantes/` | `.3dm` of the 75 hull variants (`V000`–`V074`) |
 
-## El casco de partida
+Each output `.3dm` is in metres and holds three layers per patch:
+- the trimmed mesh, on the `HULL` layer, which looks exactly like the hull;
+- the transformed untrimmed NURBS surface, on the hidden `HULL::NURBS_sin_recortar` sublayer;
+- the transformed trim edges, on the hidden `HULL::Bordes_recorte` sublayer, to re-trim in Rhino
+  with `_Split` if a brep is needed.
 
-`Trawler_hull_maxsurf_model.3dm` (exportado de Maxsurf) está en **mm**, tiene las dos
-bandas y es un mosaico de 51 breps sin nombre con caras **recortadas**. El programa:
+## Code structure
 
-1. pasa a metros, se queda con las caras de estribor y traslada el origen a los ejes
-   del enunciado (espejo en x = 0, punto más bajo en z = 0);
-2. como `rhino3dm` no da las curvas de recorte 2D, proyecta las aristas 3D de cada cara
-   sobre su superficie (inversión de puntos por Newton) y rehace el contorno de recorte
-   en (u, v);
-3. tesela cada superficie en una rejilla (u, v) de ~5 cm ajustada al contorno: los
-   vértices de los triángulos del borde se llevan sobre el recorte, de modo que las
-   piezas vecinas encajan sin huecos ni solapes.
+| File | Content |
+|---|---|
+| `main.py` | Command-line program (argparse) |
+| `piezas_trawler.json` | Roles (skeg) and names of the patches of the parent `.3dm` |
+| `transfparam/nurbs.py` | B-splines with numpy: Cox-de Boor basis, point inversion, knot insertion |
+| `transfparam/modelo.py` | Reading the `.3dm`, trim boundaries, tessellation, patch joints, writing |
+| `transfparam/hidrostatica.py` | Hydrostatics by sections, SAC, wetted surface, convergence check |
+| `transfparam/transformacion.py` | Affine scaling and Lackenby transformation |
+| `transfparam/resistencia.py` | Holtrop-Mennen 1982/1984 and van Oortmerssen 1971, validity ranges |
+| `transfparam/serie.py` | Variant matrix at constant displacement |
+| `transfparam/graficas.py` | SAC, body plan, R_T maps, R_T–V curves |
+| `transfparam/salidas.py` | CSV/Excel tables and reports |
+| `tests/` | Verification (pytest) |
 
-El `.3dm` de salida (en metros) contiene, por pieza: la malla recortada (capa `HULL`,
-idéntica a la vista del casco), la superficie NURBS transformada sin recortar (subcapa
-oculta `NURBS_sin_recortar`) y las aristas transformadas (subcapa oculta
-`Bordes_recorte`, para volver a recortar en Rhino con `_Split` si se quiere la brep).
+## Method
 
-## Explicación del método (para la memoria)
+**Parent geometry.** The parent `.3dm` is in millimetres, has both sides and is a mosaic of
+trimmed patches. The program converts it to metres and keeps the starboard patches. It then moves
+the origin to the transom (x = 0), centreline (y = 0) and lowest point of the hull (z = 0).
+`rhino3dm` does not expose the 2D trim curves, so the 3D edges of each face are projected onto
+its surface (Newton point inversion) to rebuild the trim boundary in (u, v). Each surface is then
+tessellated on a ~5 cm (u, v) grid fitted to that boundary, so neighbouring patches meet without
+gaps or overlaps.
 
-**Hidrostáticas.** El casco se corta con 200 planos transversales x = cte. Como el
-modelo tiene superficies solapadas y caras interiores, en cada sección se toma el
-contorno exterior (semimanga máxima y_e(z) en cada cota) y su área sumergida
-A(x) = 2∫y_e dz. Volumen, LCB, área de flotación y LCF se integran en x por trapecios;
-la superficie mojada es el área de los triángulos exteriores bajo la flotación (sin el
-espejo). Al doblar teselado, secciones y cotas, ninguna magnitud cambia más de un 0,1 %.
+**Hydrostatics.** The hull is cut by 200 transverse planes. Because of the overlapping and
+internal patches, only the outer contour of each section is kept (maximum half-breadth at each
+height), giving A(x) = 2∫y dz. Volume, LCB, waterplane area and LCF are integrated along x with
+the trapezoidal rule. The wetted surface is the area of the outer triangles below the waterline,
+excluding the transom. Doubling the tessellation, sections and waterlines changes no quantity by
+more than 0.1 %.
 
-**Transformación.** Se hace en dos pasos sobre los puntos de control de todas las
-superficies a la vez, como en Maxsurf:
+**Transformation.** Two steps, applied to the control points of all patches at once:
 
-1. *Escalado afín* x' = s_x x, y' = s_y y, z' = s_z z, que lleva Lwl, Bwl y T a sus
-   valores objetivo. Es lineal, luego exacto sobre los puntos de control: el
-   desplazamiento queda multiplicado por s_x s_y s_z y los coeficientes de forma no
-   cambian.
-2. *Desplazamiento de secciones de Lackenby (1950)*: x' = x + δx(x), donde cada sección
-   se mueve en x sin cambiar de forma. Con el casco dividido por la sección de área
-   máxima y ξ ∈ [0,1] medida desde ella hasta el extremo de la flotación de cada
-   cuerpo, δx = c·L_h·ξ(1−ξ), nulo en la maestra y en los extremos: no cambian la
-   eslora, la manga, el calado ni el área maestra, y sí el Cp de cada cuerpo y el LCB.
-   En la formulación de Lackenby, con la SAC adimensional de cada medio cuerpo
-   (coeficiente prismático Cp_h, centro x̄ y radio de giro r), el cambio es
-   δCp_h = c·Cp_h(1−2x̄) y δ(Cp_h x̄) = c·Cp_h(2x̄−3r²). Los cambios de volumen y de
-   momento que exigen el Cb y el LCB objetivo dan un sistema lineal en (c_popa, c_proa).
-   Como la SAC se traslada exactamente, A'(x+δx) = A(x), el volumen y el momento nuevos
-   se calculan sin aproximación y el sistema se resuelve por Newton. Después se corrige
-   con las hidrostáticas medidas en el casco transformado hasta una tolerancia de 1e-4
-   en Cb y en LCB/Lwl. La transformación no cruza secciones si |c| < 1. Antes de
-   aplicarla se insertan nudos en las NURBS (sin cambiar la geometría) para que ningún
-   tramo abarque más de 10 cm en x, ni más de 2 cm junto a las perpendiculares y la
-   maestra, donde la ley de Lackenby cambia de pendiente. Así mover los puntos de
-   control equivale a mover la superficie y las juntas entre piezas no se abren (en la
-   variante más deformada de la matriz, la junta máxima es de 3,5 mm; límite 5 mm).
+1. *Affine scaling* x' = s_x x, y' = s_y y, z' = s_z z, which brings Lwl, Bwl and T to their
+   targets. Being linear, it is exact on the control points: the displacement scales by
+   s_x s_y s_z and the form coefficients do not change.
+2. *Lackenby section shift* (Lackenby, 1950), x' = x + δx(x): each section moves along the ship
+   without changing its shape. The hull is split at the maximum section and, with ξ ∈ [0, 1]
+   running from it to the end of the waterline, δx = c·L_h·ξ(1−ξ) for each half body. The shift
+   is zero at the maximum section and at both ends, so length, beam, draught and midship area are
+   kept, while C_P of each body and the LCB change. Lackenby's first-order relations,
+   δC_P = c·C_P(1−2x̄) and δ(C_P x̄) = c·C_P(2x̄−3r²), give the starting amplitudes (x̄ and r:
+   centroid and radius of gyration of each half SAC). Since the SAC moves exactly,
+   A'(x+δx) = A(x), the new volume and moment are known exactly and both amplitudes are solved
+   analytically. They are then corrected with the hydrostatics measured on the transformed hull
+   until C_B and LCB/Lwl match within 1e-4. Sections never cross as long as |c| < 1.
 
-**Resistencia.** Holtrop y Mennen (1982) con la reanálisis de Holtrop (1984), y van
-Oortmerssen (1971), con los parámetros medidos en cada casco (Lwl, B, T, ∇, S, Cp, Cm,
-Cwp, LCB, iE y área sumergida del espejo A_T). Se avisa cuando un parámetro sale del
-rango de validez de cada método. Por defecto se usa Holtrop 1984 (factor de forma y
-resistencia por olas de la reanálisis); `--holtrop 1982` usa las del artículo original.
-Comprobaciones: van Oortmerssen reproduce el ejemplo del remolcador de Molland et al.
-(2011, §17.2.13) y Holtrop 1982 reproduce celda a celda la hoja `Holtrop2020B.xlsx`.
+Before the shift, knots are inserted in the NURBS surfaces without changing the geometry, so that
+no span covers more than 10 cm in x (2 cm next to the perpendiculars and the maximum section,
+where the Lackenby law changes slope). Moving the control points is then equivalent to moving the
+surface, and the joints between patches stay closed: 3.5 mm in the most deformed variant of the
+matrix, against a 5 mm limit.
 
-**Calado.** T es la distancia de la DWL al punto más bajo del forro (con skeg), como
-pide el enunciado; Cb, Cm y B/T usan ese calado. El calado a proa T_F (solo interviene
-en los términos de bulbo y correlación de Holtrop) se obtiene prolongando la línea de
-quilla hasta la perpendicular de proa.
+**Resistance.** Holtrop and Mennen (1982) with Holtrop's re-analysis (1984), and van Oortmerssen
+(1971), using the parameters measured on each hull (Lwl, B, T, ∇, S, C_P, C_M, C_WP, LCB, i_E and
+immersed transom area A_T). A warning is issued whenever a parameter falls outside the validity
+range of a method. Holtrop 1984 is the default; `--holtrop 1982` uses the original paper. Checks:
+van Oortmerssen reproduces the tug example of Molland et al. (2011, §17.2.13), and Holtrop 1982
+reproduces a worked spreadsheet cell by cell.
 
-## Referencias
+**Draught.** T is measured from the waterline to the lowest point of the hull (bottom of the
+skeg), and C_B, C_M and B/T use this draught. The forward draught T_F, which only enters the
+bulb and correlation terms of Holtrop, is obtained by extending the keel line to the forward
+perpendicular.
+
+## References
 
 - Lackenby, H. (1950). On the systematic geometrical variation of ship forms.
-  *Transactions of the Institution of Naval Architects*, 92, 289-316.
-- Holtrop, J. y Mennen, G.G.J. (1982). An approximate power prediction method.
-  *International Shipbuilding Progress*, 29(335), 166-170.
+  *Transactions of the Institution of Naval Architects*, 92, 289–316.
+- Holtrop, J. and Mennen, G.G.J. (1982). An approximate power prediction method.
+  *International Shipbuilding Progress*, 29(335), 166–170.
 - Holtrop, J. (1984). A statistical re-analysis of resistance and propulsion data.
-  *International Shipbuilding Progress*, 31(363), 272-276.
-- van Oortmerssen, G. (1971). A power prediction method and its application to small
-  ships. *International Shipbuilding Progress*, 18(207), 397-415.
-- Molland, A.F., Turnock, S.R. y Hudson, D.A. (2011). *Ship Resistance and Propulsion*.
-  Cambridge University Press (ec. 4.23, 10.24-10.34, 10.49 y tabla A3.23).
-- Piegl, L. y Tiller, W. (1997). *The NURBS Book*, 2.ª ed. Springer.
+  *International Shipbuilding Progress*, 31(363), 272–276.
+- van Oortmerssen, G. (1971). A power prediction method and its application to small ships.
+  *International Shipbuilding Progress*, 18(207), 397–415.
+- Molland, A.F., Turnock, S.R. and Hudson, D.A. (2011). *Ship Resistance and Propulsion*.
+  Cambridge University Press (Eqs. 4.23, 10.24–10.34, 10.49 and Table A3.23).
+- Piegl, L. and Tiller, W. (1997). *The NURBS Book*, 2nd ed. Springer.
